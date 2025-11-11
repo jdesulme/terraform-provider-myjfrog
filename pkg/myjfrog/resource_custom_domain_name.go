@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -25,6 +26,14 @@ import (
 )
 
 var _ resource.Resource = (*customDomainNameResource)(nil)
+
+// normalizeCertificateData normalizes line endings in certificate data
+// by converting all CRLF (\r\n) sequences to LF (\n).
+// This ensures consistent handling of certificate data regardless of
+// the source (Windows vs Unix line endings).
+func normalizeCertificateData(data string) string {
+	return strings.ReplaceAll(data, "\r\n", "\n")
+}
 
 type customDomainNameResource struct {
 	ProviderData util.ProviderMetadata
@@ -227,9 +236,9 @@ func (r *customDomainNameResourceModel) toSubmitAPIModel(_ context.Context, apiM
 	*apiModel = customDomainNameSubmitAPIModel{
 		customDomainNameCommonAPIModel: customDomainNameCommonAPIModel{
 			CertificateName:       r.CertificateName.ValueString(),
-			CertificateBody:       r.CertificateBody.ValueString(),
-			CertificateChain:      r.CertificateChain.ValueString(),
-			CertificatePrivateKey: r.CertificatePrivateKey.ValueString(),
+			CertificateBody:       normalizeCertificateData(r.CertificateBody.ValueString()),
+			CertificateChain:      normalizeCertificateData(r.CertificateChain.ValueString()),
+			CertificatePrivateKey: normalizeCertificateData(r.CertificatePrivateKey.ValueString()),
 		},
 		DomainsUnderCertificate: domainsUnderCertificate,
 	}
@@ -258,9 +267,9 @@ func (r *customDomainNameResourceModel) toRenewAPIModel(_ context.Context, apiMo
 		customDomainNameSubmitAPIModel: customDomainNameSubmitAPIModel{
 			customDomainNameCommonAPIModel: customDomainNameCommonAPIModel{
 				CertificateName:       r.CertificateName.ValueString(),
-				CertificateBody:       r.CertificateBody.ValueString(),
-				CertificateChain:      r.CertificateChain.ValueString(),
-				CertificatePrivateKey: r.CertificatePrivateKey.ValueString(),
+				CertificateBody:       normalizeCertificateData(r.CertificateBody.ValueString()),
+				CertificateChain:      normalizeCertificateData(r.CertificateChain.ValueString()),
+				CertificatePrivateKey: normalizeCertificateData(r.CertificatePrivateKey.ValueString()),
 			},
 			DomainsUnderCertificate: domainsUnderCertificate,
 		},
@@ -272,11 +281,12 @@ func (r *customDomainNameResourceModel) toRenewAPIModel(_ context.Context, apiMo
 func (r *customDomainNameResourceModel) fromAPIModel(_ context.Context, apiModel *customDomainNameSSLCertificateAPIModel) (ds diag.Diagnostics) {
 	r.ID = types.StringValue(apiModel.CertificateID)
 	r.CertificateName = types.StringValue(apiModel.CertificateName)
-	r.CertificateBody = types.StringValue(apiModel.CertificateBody)
+	// Normalize certificate data to ensure consistent line endings
+	r.CertificateBody = types.StringValue(normalizeCertificateData(apiModel.CertificateBody))
 
 	certificateChain := types.StringNull()
 	if apiModel.CertificateChain != "" {
-		certificateChain = types.StringValue(apiModel.CertificateChain)
+		certificateChain = types.StringValue(normalizeCertificateData(apiModel.CertificateChain))
 	}
 	r.CertificateChain = certificateChain
 	r.CertificateExpiry = types.Int64Value(apiModel.Expiry)
